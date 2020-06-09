@@ -13,6 +13,7 @@ import android.view.Surface;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 /*
  * Copyright (C) 2019 Homesoft, LLC
@@ -34,7 +35,7 @@ public class FrameEncoder {
     private static final String TAG = FrameEncoder.class.getSimpleName();
     private static final boolean VERBOSE = false;
 
-    private static final long SECOND_IN_USEC = 1000000;
+    private static final long SECOND_IN_USEC = TimeUnit.SECONDS.toMicros(1L);
     private static final int TIMEOUT_USEC = 10000;
 
     private final EncoderConfig mEncoderConfig;

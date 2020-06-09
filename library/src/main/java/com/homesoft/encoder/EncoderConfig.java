@@ -32,7 +32,7 @@ public abstract class EncoderConfig {
     private int width;
     private int height;
     private String mimeType;
-    private AssetFileDescriptor audioTrackFileDescriptor;
+    private int audioTrack;
     private int framesPerImage;
 
     abstract FrameMuxer getFrameMuxer() throws IOException;
@@ -57,10 +57,9 @@ public abstract class EncoderConfig {
         return false;
     }
 
-    public EncoderConfig(final float framesPerSecond, final int bitRate, final String mimeType) {
+    public EncoderConfig(final float framesPerSecond, final int bitRate) {
         this.framesPerSecond = framesPerSecond;
         this.bitRate = bitRate;
-        this.mimeType = mimeType;
     }
 
     public EncoderConfig(final String path, final int width, final int height, final float framesPerSecond, final int bitRate) {
@@ -111,12 +110,12 @@ public abstract class EncoderConfig {
         this.mimeType = mimeType;
     }
 
-    public AssetFileDescriptor getAudioTrackFileDescriptor() {
-        return audioTrackFileDescriptor;
+    public int getAudioTrack() {
+        return audioTrack;
     }
 
-    public void setAudioTrackFileDescriptor(AssetFileDescriptor audioTrackFileDescriptor) {
-        this.audioTrackFileDescriptor = audioTrackFileDescriptor;
+    public void setAudioTrack(int track) {
+        this.audioTrack = audioTracks[track];
     }
 
     public int getFramesPerImage() {
