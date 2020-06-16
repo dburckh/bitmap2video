@@ -1,9 +1,9 @@
-package com.homesoft.encoder;
+package com.homesoft.encoder
 
-import android.media.MediaCodec;
-import android.media.MediaExtractor;
-
-import java.nio.ByteBuffer;
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import java.nio.ByteBuffer
 
 /*
  * Copyright (C) 2019 Homesoft, LLC
@@ -20,21 +20,18 @@ import java.nio.ByteBuffer;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+interface FrameMuxer {
 
-public interface FrameMuxer {
+    fun isStarted(): Boolean
 
-    boolean isStarted();
+    fun start(videoFormat: MediaFormat, audioExtractor: MediaExtractor? = null)
 
-    void start(final FrameEncoder frameEncoder);
+    fun muxVideoFrame(byteBuffer: ByteBuffer, bufferInfo: MediaCodec.BufferInfo)
 
-    void start(FrameEncoder frameEncoder, MediaExtractor audioExtractor);
+    fun muxAudioFrame(encodedData: ByteBuffer, audioBufferInfo: MediaCodec.BufferInfo)
 
-    void muxVideoFrame(final ByteBuffer byteBuffer, MediaCodec.BufferInfo bufferInfo);
+    fun release()
 
-    void muxAudioFrame(ByteBuffer encodedData, MediaCodec.BufferInfo audioBufferInfo);
-
-    void release();
-
-    long getVideoTime();
+    fun getVideoTime(): Long
 
 }
