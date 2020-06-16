@@ -3,42 +3,75 @@ package com.homesoft.encoder
 import android.content.Context
 import android.content.res.AssetFileDescriptor
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Rect
-import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaExtractor
-import android.media.MediaFormat
+import android.media.*
+import android.media.MediaCodecList.REGULAR_CODECS
 import android.os.Build
 import android.util.Log
 import android.view.Surface
+import androidx.annotation.RawRes
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 
-class FrameBuilder(private val context: Context, private val muxerConfig: MuxerConfig) {
+class FrameBuilder(
+        private val context: Context,
+        private val muxerConfig: MuxerConfig,
+        @RawRes private val audioTrackResource: Int?
+) {
 
     private val TAG = FrameBuilder::class.java.simpleName
     private val VERBOSE: Boolean = false
-
-    private var bufferInfo: MediaCodec.BufferInfo = MediaCodec.BufferInfo()
-    private val mediaFormat = getVideoMediaFormat()
-    private val mediaCodec: MediaCodec = MediaCodec.createEncoderByType(mediaFormat.getString(MediaFormat.KEY_MIME))
-    private val surface: Surface = mediaCodec.createInputSurface()
     private val SECOND_IN_USEC = TimeUnit.SECONDS.toMicros(1L)
     private val TIMEOUT_USEC = 10000
 
+    private val mediaFormat: MediaFormat = run {
+        val format = MediaFormat.createVideoFormat(muxerConfig.mimeType, muxerConfig
+                .videoWidth, muxerConfig.videoHeight)
+
+        // Set some properties.  Failing to specify some of these can cause the MediaCodec
+        // configure() call to throw an unhelpful exception.
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+        format.setInteger(MediaFormat.KEY_BIT_RATE, muxerConfig.bitrate)
+        format.setFloat(MediaFormat.KEY_FRAME_RATE, muxerConfig.framesPerSecond)
+        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, muxerConfig.iFrameInterval)
+        format
+    }
+
+    private val mediaCodec: MediaCodec = run {
+        val codecs = MediaCodecList(REGULAR_CODECS)
+        MediaCodec.createByCodecName(codecs.findEncoderForFormat(mediaFormat))
+    }
+
+    private val bufferInfo: MediaCodec.BufferInfo = MediaCodec.BufferInfo()
+    private var surface: Surface = mediaCodec.createInputSurface()
+    private var frameMuxer: FrameMuxer = muxerConfig.frameMuxer
+
     private var rect: Rect? = null
-    private val frameMuxer: FrameMuxer = muxerConfig.frameMuxer
-    private var audioExtractor: MediaExtractor? = null
-    private var audioTrackFrameCount = 0
+
+    private var audioExtractor: MediaExtractor? = run {
+        if (audioTrackResource != null) {
+            val assetFileDescriptor: AssetFileDescriptor = context.resources.openRawResourceFd(audioTrackResource)
+            val extractor = MediaExtractor()
+            extractor.setDataSource(
+                    assetFileDescriptor.fileDescriptor,
+                    assetFileDescriptor.startOffset,
+                    assetFileDescriptor.length
+            )
+            extractor
+        } else {
+            null
+        }
+    }
 
     /**
      * @throws IOException
      */
     fun start() {
         mediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        audioExtractor = getAudioMediaExtractor() // todo
         mediaCodec.start()
         drainCodec(false)
     }
@@ -51,22 +84,34 @@ class FrameBuilder(private val context: Context, private val muxerConfig: MuxerC
         }
     }
 
-    fun createFrame(bitmap: Bitmap, framesPerImage: Int = 1) {
-        // Add the same bitmap {@code framesPerImage} number of times
-        for (i in 0 until framesPerImage) {
-            val canvas = getCanvas()
-            canvas?.drawBitmap(bitmap, 0f, 0f, null)
-            createFrame(canvas)
+    fun createFrame(image: Any) {
+        when (image) {
+            is Int -> {
+                Log.i(TAG, "Trying to decode as @DrawableRes")
+                val bitmap = BitmapFactory.decodeResource(context.resources, image)
+                postCanvasFrame(createCanvas(bitmap))
+            }
+            is Bitmap -> postCanvasFrame(createCanvas(image))
+            is Canvas -> postCanvasFrame(image)
+            else -> Log.e(TAG, "Image type $image is not supported. Try using a Canvas or a Bitmap")
         }
+    }
+
+    private fun createCanvas(bitmap: Bitmap): Canvas? {
+        val canvas = getCanvas()
+        canvas?.drawBitmap(bitmap, 0f, 0f, null)
+        return canvas
     }
 
     /**
      *
      * @param canvas acquired from getCanvas()
      */
-    fun createFrame(canvas: Canvas?) {
-        surface.unlockCanvasAndPost(canvas)
-        drainCodec(false)
+    private fun postCanvasFrame(canvas: Canvas?) {
+        for (i in 0 until muxerConfig.framesPerImage) {
+            surface.unlockCanvasAndPost(canvas)
+            drainCodec(false)
+        }
     }
 
     /**
@@ -144,15 +189,16 @@ class FrameBuilder(private val context: Context, private val muxerConfig: MuxerC
     fun muxAudioFrames() {
         val sampleSize = 256 * 1024
         val offset = 100
-        val audioBuf = ByteBuffer.allocate(sampleSize)
+        val audioBuffer = ByteBuffer.allocate(sampleSize)
         val audioBufferInfo = MediaCodec.BufferInfo()
         var sawEOS = false
         audioExtractor!!.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
         var finalAudioTime: Long
         val finalVideoTime: Long = frameMuxer.getVideoTime()
+        var audioTrackFrameCount = 0
         while (!sawEOS) {
             audioBufferInfo.offset = offset
-            audioBufferInfo.size = audioExtractor!!.readSampleData(audioBuf, offset)
+            audioBufferInfo.size = audioExtractor!!.readSampleData(audioBuffer, offset)
             if (audioBufferInfo.size < 0) {
                 if (VERBOSE) Log.d(TAG, "Saw input EOS.")
                 audioBufferInfo.size = 0
@@ -161,12 +207,13 @@ class FrameBuilder(private val context: Context, private val muxerConfig: MuxerC
                 finalAudioTime = audioExtractor!!.sampleTime
                 audioBufferInfo.presentationTimeUs = finalAudioTime
                 audioBufferInfo.flags = audioExtractor!!.sampleFlags
-                frameMuxer.muxAudioFrame(audioBuf, audioBufferInfo)
+                frameMuxer.muxAudioFrame(audioBuffer, audioBufferInfo)
                 audioExtractor!!.advance()
                 audioTrackFrameCount++
-                if (VERBOSE) Log.d(TAG, "Frame ($audioTrackFrameCount Flags: ${audioBufferInfo.flags} Size(KB): ${audioBufferInfo.size / 1024}"
+                if (VERBOSE) Log.d(TAG, "Frame ($audioTrackFrameCount Flags: ${audioBufferInfo.flags} Size(KB): ${audioBufferInfo.size / 1024}")
                 // We want the sound to play for a few more seconds after the last image
-                if (finalAudioTime > finalVideoTime && finalAudioTime % finalVideoTime > muxerConfig.framesPerImage * SECOND_IN_USEC) {
+                if ((finalAudioTime > finalVideoTime) &&
+                        (finalAudioTime % finalVideoTime > muxerConfig.framesPerImage * SECOND_IN_USEC)) {
                     sawEOS = true
                     if (VERBOSE) Log.d(TAG, "Final audio time: $finalAudioTime video time: $finalVideoTime")
                 }
@@ -174,32 +221,25 @@ class FrameBuilder(private val context: Context, private val muxerConfig: MuxerC
         }
     }
 
-    private fun getVideoMediaFormat(): MediaFormat? {
-        val format = MediaFormat.createVideoFormat(muxerConfig.mimeType, muxerConfig
-                .videoWidth, muxerConfig.videoHeight)
-
-        // Set some properties.  Failing to specify some of these can cause the MediaCodec
-        // configure() call to throw an unhelpful exception.
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-        format.setInteger(MediaFormat.KEY_BIT_RATE, muxerConfig.bitrate)
-        format.setFloat(MediaFormat.KEY_FRAME_RATE, muxerConfig.framesPerSecond)
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, muxerConfig.iFrameInterval)
-        return format
+    /**
+     * Releases encoder resources.  May be called after partial / failed initialization.
+     */
+    fun releaseVideoCodec() {
+        // Release the video layer
+        if (VERBOSE) Log.d(TAG, "releasing encoder objects")
+        drainCodec(true)
+        mediaCodec.stop()
+        mediaCodec.release()
+        surface.release()
     }
 
-    private fun getAudioMediaExtractor(): MediaExtractor? {
-        try {
-            val assetFileDescriptor: AssetFileDescriptor = muxerConfig
-                    .getAudioTrackFileDescriptor() // todo
-            val audioExtractor = MediaExtractor()
-            audioExtractor.setDataSource(assetFileDescriptor.fileDescriptor,
-                    assetFileDescriptor.startOffset, assetFileDescriptor.length)
-            return audioExtractor
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-        return null
+    fun releaseAudioExtractor() {
+        audioExtractor?.release()
+    }
+
+    fun releaseMuxer() {
+        // Release MediaMuxer
+        frameMuxer.release()
     }
 
 }

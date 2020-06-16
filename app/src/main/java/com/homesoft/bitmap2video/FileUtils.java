@@ -1,4 +1,4 @@
-package com.homesoft.encoder.utils;
+package com.homesoft.bitmap2video;
 
 import android.content.Context;
 import android.content.Intent;

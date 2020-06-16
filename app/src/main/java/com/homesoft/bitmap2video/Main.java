@@ -2,16 +2,13 @@ package com.homesoft.bitmap2video;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
 import android.content.res.Resources;
 import android.graphics.Paint;
 import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.ShapeDrawable;
-import android.content.res.AssetFileDescriptor;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.FileUtils;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
@@ -23,16 +20,11 @@ import android.widget.VideoView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
-import com.homesoft.drawable.PathRoundedRectShape;
-import com.homesoft.encoder.AvcEncoderConfig;
-import com.homesoft.encoder.EncoderConfig;
-import com.homesoft.encoder.HevcEncoderConfig;
-
 import java.io.File;
 
-import static com.homesoft.encoder.utils.FileUtils.getFileDescriptor;
-import static com.homesoft.encoder.utils.FileUtils.getVideoFile;
-import static com.homesoft.encoder.utils.FileUtils.shareVideo;
+import static com.homesoft.bitmap2video.FileUtils.getFileDescriptor;
+import static com.homesoft.bitmap2video.FileUtils.getVideoFile;
+import static com.homesoft.bitmap2video.FileUtils.shareVideo;
 
 /*
  * Copyright (C) 2019 Homesoft, LLC
@@ -141,27 +133,6 @@ public class MainActivity extends AppCompatActivity {
         return typedValue.getFloat();
     }
 
-
-    private void createActionBarBorder(final Toolbar toolbar) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            //This is not awesome, but shadowLayer is not supported by hardware acceleration before Pie
-            toolbar.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
-        final Resources res = getResources();
-        final PathRoundedRectShape shape = new PathRoundedRectShape();
-        shape.setCornerRadius(res.getDimension(R.dimen.actionBarCornerRadius));
-        final ShapeDrawable shapeDrawable = new ShapeDrawable(shape);
-        final int insets = res.getDimensionPixelSize(R.dimen.actionBarInsets);
-        final InsetDrawable insetDrawable = new InsetDrawable(shapeDrawable, insets);
-        final Paint paint = shapeDrawable.getPaint();
-        paint.setStyle(Paint.Style.FILL);
-        shape.setClip(true);
-        paint.setShadowLayer(getFloat(res, R.dimen.actionBarShadowRadius),
-                getFloat(res, R.dimen.actionBarShadowDx),
-                getFloat(res, R.dimen.actionBarShadowDy),
-                res.getColor(R.color.actionBarShadowColor));
-        toolbar.setBackground(insetDrawable);
-    }
 
     void done() {
         runOnUiThread(new Runnable() {

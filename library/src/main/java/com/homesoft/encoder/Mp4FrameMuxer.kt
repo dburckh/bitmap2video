@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.util.Log
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 /*
  * Copyright (C) 2019 Homesoft, LLC
@@ -23,13 +24,17 @@ import java.nio.ByteBuffer
  * limitations under the License.
  */
 
-class Mp4FrameMuxer(path: String?, fps: Float) : FrameMuxer {
+class Mp4FrameMuxer(private val path: String?, private val fps: Float) : FrameMuxer {
     companion object {
-        private val TAG: String = Mp4FrameMuxer::class.java.getSimpleName()
+        private val TAG: String = Mp4FrameMuxer::class.java.simpleName
     }
 
-    private val frameUsec: Long = FrameEncoder.getFrameTime(fps)
+    private val frameUsec: Long = run {
+        (TimeUnit.SECONDS.toMicros(1L) / fps).toLong()
+    }
+
     private val muxer: MediaMuxer = MediaMuxer(path!!, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
     private var started = false
     private var videoTrackIndex = 0
     private var audioTrackIndex = 0
