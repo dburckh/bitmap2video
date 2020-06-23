@@ -4,12 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context=".MainActivity">
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        />
+    tools:context="MainActivity">
+
     <RadioGroup
         android:id="@+id/codec"
         android:layout_width="match_parent"
@@ -29,25 +25,29 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"/>
     </RadioGroup>
+
     <Button
-        android:id="@+id/make"
+        android:id="@+id/bt_make"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/make_it"/>
+
     <Button
-        android:id="@+id/play"
+        android:id="@+id/bt_play"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/play_it"
         android:enabled="false"
         />
+
     <Button
-        android:id="@+id/share"
+        android:id="@+id/bt_share"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/share_it"
         android:enabled="false"
         />
+
     <VideoView
         android:id="@+id/player"
         android:layout_width="match_parent"

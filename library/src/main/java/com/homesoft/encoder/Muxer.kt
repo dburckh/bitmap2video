@@ -41,7 +41,8 @@ class Muxer(
      * List containing images in any of the following formats:
      * [Bitmap] [@DrawRes Int] [Canvas]
      */
-    fun mux(imageList: List<Any>, @RawRes audioTrack: Int? = null) {
+    fun mux(imageList: List<Any>,
+            @RawRes audioTrack: Int? = null) {
         // Returns on a callback a finished video
         Log.d(TAG, "Generating video")
         val frameBuilder = FrameBuilder(context, muxerConfig, audioTrack)
@@ -77,23 +78,22 @@ class Muxer(
         }
     }
 
-    fun setMuxingCompletionListener(muxingCompletionListener: MuxingCompletionListener) {
+    fun setOnMuxingCompleted(muxingCompletionListener: MuxingCompletionListener) {
         this.muxingCompletionListener = muxingCompletionListener
     }
+}
 
-    fun isSupported(mimeType: String?): Boolean {
-        val codecs = MediaCodecList(REGULAR_CODECS)
-        for (codec in codecs.codecInfos) {
-            if (!codec.isEncoder) {
-                continue
-            }
-            for (type in codec.supportedTypes) {
-                if (type == mimeType) return true
-            }
+fun isCodecSupported(mimeType: String?): Boolean {
+    val codecs = MediaCodecList(REGULAR_CODECS)
+    for (codec in codecs.codecInfos) {
+        if (!codec.isEncoder) {
+            continue
         }
-        return false
+        for (type in codec.supportedTypes) {
+            if (type == mimeType) return true
+        }
     }
-
+    return false
 }
 
 interface MuxingCompletionListener {
